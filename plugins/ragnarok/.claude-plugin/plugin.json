@@ -1,0 +1,17 @@
+{
+  "name": "ragnarok",
+  "version": "0.1.0",
+  "description": "Skills, hooks and configuration to set up the ragnarok vault search system on a fresh machine.",
+  "author": {
+    "name": "freyr"
+  },
+  "repository": "https://github.com/freyr/ragnarok-claude-plugin",
+  "keywords": [
+    "ragnarok",
+    "obsidian",
+    "rag",
+    "mcp",
+    "knowledge-base"
+  ],
+  "license": "MIT"
+}

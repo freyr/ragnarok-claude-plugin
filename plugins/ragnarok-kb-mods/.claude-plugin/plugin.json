@@ -1,0 +1,15 @@
+{
+  "name": "ragnarok-kb-mods",
+  "version": "0.1.0",
+  "description": "Optional mods for ragnarok knowledge-base features.",
+  "author": {
+    "name": "freyr"
+  },
+  "repository": "https://github.com/freyr/ragnarok-claude-plugin",
+  "keywords": [
+    "ragnarok",
+    "mod",
+    "knowledge-base"
+  ],
+  "license": "MIT"
+}

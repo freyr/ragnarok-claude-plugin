@@ -1,0 +1,21 @@
+{
+  "name": "ragnarok",
+  "owner": {
+    "name": "freyr"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for ragnarok, the local RAG search over Obsidian vaults: setup and knowledge-base mods."
+  },
+  "plugins": [
+    {
+      "name": "ragnarok",
+      "source": "./plugins/ragnarok",
+      "description": "Skills, hooks and configuration to set up the ragnarok vault search system on a fresh machine."
+    },
+    {
+      "name": "ragnarok-kb-mods",
+      "source": "./plugins/ragnarok-kb-mods",
+      "description": "Optional mods for ragnarok knowledge-base features."
+    }
+  ]
+}
