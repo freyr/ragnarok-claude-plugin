@@ -11,7 +11,7 @@
     {
       "name": "ragnarok",
       "source": "./plugins/ragnarok",
-      "description": "Set up ragnarok on a computer, adapt it to your vaults, and make Claude search the vaults with ragnarok first."
+      "description": "Run the ragnarok MCP server from PyPI, set it up, adapt it to your vaults, and make Claude search the vaults with ragnarok first."
     },
     {
       "name": "ragnarok-kb-mods",

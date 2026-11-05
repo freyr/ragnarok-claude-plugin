@@ -1,8 +1,8 @@
 # ragnarok
 
 Claude Code support for [ragnarok](https://github.com/freyr/ragnarok), the local RAG search over Obsidian
-vaults. The plugin sets ragnarok up on a computer, adapts it to your vaults, and tells Claude to search the
-vaults with ragnarok before it uses Grep.
+vaults. The plugin runs the ragnarok MCP server, sets ragnarok up on a computer, adapts it to your vaults,
+and tells Claude to search the vaults with ragnarok before it uses Grep.
 
 ## Install
 
@@ -17,19 +17,25 @@ Then ask Claude to set up ragnarok. The `ragnarok-setup` skill does the rest.
 
 | Part | What it does |
 | --- | --- |
-| Skill `ragnarok-setup` | Clones `freyr/ragnarok`, runs `setup.sh` (uv, Ollama service, embedding model, index, MCP registration) and `ragnarok doctor`, and fixes what fails. |
+| MCP server `ragnarok` | `uvx ragnarok-mcp serve` from [PyPI](https://pypi.org/p/ragnarok-mcp). The tools are `mcp__plugin_ragnarok_ragnarok__*`. |
+| Skill `ragnarok-setup` | Runs `uvx ragnarok-mcp init` (Ollama service, embedding model, index) and `ragnarok doctor`, fixes what fails, and moves an older checkout setup to the plugin. |
 | Skill `ragnarok-adapt` | Adapts ragnarok to your vaults: survey, private folders, path rules, optional frontmatter backfill, an evaluation set. |
-| SessionStart hook | Adds the "ragnarok first" search guidance to each session, so Claude uses the `mcp__ragnarok__*` tools before Grep. |
-| `scripts/ragnarok-dir.sh` | Finds the checkout: `$RAGNAROK_DIR`, else the folder of the registered MCP server, else `~/code/ragnarok`. |
+| SessionStart hook | Adds the "ragnarok first" search guidance to each session, so Claude uses the ragnarok tools before Grep. |
+| `scripts/ragnarok-home.sh` | Prints the home folder of the server: `$RAGNAROK_HOME`, else `~/.ragnarok`. |
 
-The plugin does not register the MCP server. `ragnarok init` registers it at the user scope, with the
-folder of your checkout. The tool names then stay `mcp__ragnarok__*` for all sessions.
+## Home folder
+
+The home folder holds `config.toml`, the index and the server log. It is `~/.ragnarok`. To use a different
+folder, for example an older checkout of freyr/ragnarok, set `RAGNAROK_HOME` in the `env` of
+`~/.claude/settings.json` and in your shell profile.
 
 ## Requirements
 
-macOS with Homebrew, `brew install ollama`, and Claude Code. `setup.sh` installs uv.
+macOS with Homebrew, `brew install ollama uv`, and Claude Code.
 
 ## Note
 
 If your `~/.claude/CLAUDE.md` already holds a "ragnarok first" block, remove it. The hook gives the same
-guidance, and two copies that differ confuse Claude.
+guidance, and two copies that differ confuse Claude. If `ragnarok init` registered the server at the user
+scope before, remove that registration (`claude mcp remove --scope user ragnarok`, or `uvx ragnarok-mcp init`
+asks to remove it), so that only the plugin server runs.
