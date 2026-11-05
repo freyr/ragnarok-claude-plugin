@@ -6,7 +6,7 @@ This repository is a plugin marketplace with more than one plugin.
 ## Plugins
 
 | Plugin | Purpose |
-|---|---|
+| --- | --- |
 | [`ragnarok`](plugins/ragnarok) | Skills, hooks and configuration to set up the ragnarok vault search system on a fresh machine. |
 | [`ragnarok-kb-mods`](plugins/ragnarok-kb-mods) | Optional mods for ragnarok knowledge-base features. |
 
@@ -64,7 +64,7 @@ All plugins and the marketplace share one version. Each push to `main` runs the 
 It looks at the commit messages since the last tag. A marker in a commit message selects the release:
 
 | Marker | Release | Example |
-|---|---|---|
+| --- | --- | --- |
 | `[major]` | 1.4.2 → 2.0.0 | `Rename the search skill [major]` |
 | `[minor]` | 1.4.2 → 1.5.0 | `Add the setup command [minor]` |
 | `[patch]` | 1.4.2 → 1.4.3 | `Fix the hook matcher [patch]` |
@@ -86,7 +86,7 @@ The version is computed by [github-tag-action](https://github.com/anothrNick/git
 `.github/workflows/ci.yml` runs on each pull request and before each release:
 
 | Job | Checks |
-|---|---|
+| --- | --- |
 | Marketplace | Anthropic's [validate-plugins](https://github.com/anthropics/claude-plugins-community/tree/main/.github/actions/validate-plugins) action: `claude plugin validate` and the marketplace policy invariants. |
 | Plugins | `scripts/validate-plugins.sh`: `claude plugin validate --strict` and `--profile directory` for each plugin, folders and marketplace entries agree, all versions are the same, `claude plugin test` where a plugin has tests. |
 | Lint | markdownlint-cli2, ShellCheck, actionlint. |

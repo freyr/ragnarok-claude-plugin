@@ -11,7 +11,7 @@ Sets up the [ragnarok](https://github.com/freyr/ragnarok) vault search system on
 ## Layout
 
 | Folder | Holds |
-|---|---|
+| --- | --- |
 | `skills/` | One folder per skill, each with a `SKILL.md`. |
 | `commands/` | Slash commands as Markdown files. |
 | `agents/` | Subagent definitions as Markdown files. |

@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   ci:
-    uses: ./.github/workflows/ci.yml
+    # The '$/' self-repository syntax is not yet known to actionlint, so keep './'.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
     permissions:
       contents: read
 
@@ -104,8 +105,8 @@ jobs:
 
       - name: Publish the GitHub release
         if: steps.decide.outputs.release == 'true'
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: ${{ steps.decide.outputs.tag }}
-          name: ${{ steps.decide.outputs.tag }}
-          body_path: ${{ runner.temp }}/RELEASE_NOTES.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.decide.outputs.tag }}
+          NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
+        run: gh release create "$TAG" --title "$TAG" --notes-file "$NOTES" --verify-tag
