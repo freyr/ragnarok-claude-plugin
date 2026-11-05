@@ -61,9 +61,11 @@ jobs:
             echo "release=false" >>"$GITHUB_OUTPUT"
           else
             echo "Release $NEW_TAG ($PART bump from $OLD_TAG)." | tee -a "$GITHUB_STEP_SUMMARY"
-            echo "release=true" >>"$GITHUB_OUTPUT"
-            echo "tag=$NEW_TAG" >>"$GITHUB_OUTPUT"
-            echo "version=${NEW_TAG#v}" >>"$GITHUB_OUTPUT"
+            {
+              echo "release=true"
+              echo "tag=$NEW_TAG"
+              echo "version=${NEW_TAG#v}"
+            } >>"$GITHUB_OUTPUT"
           fi
 
       - name: Bump the plugin versions
