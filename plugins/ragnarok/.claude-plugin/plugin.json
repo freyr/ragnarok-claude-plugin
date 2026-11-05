@@ -1,7 +1,7 @@
 {
   "name": "ragnarok",
   "version": "0.1.0",
-  "description": "Skills, hooks and configuration to set up the ragnarok vault search system on a fresh machine.",
+  "description": "Set up ragnarok on a computer, adapt it to your vaults, and make Claude search the vaults with ragnarok first.",
   "author": {
     "name": "freyr"
   },
