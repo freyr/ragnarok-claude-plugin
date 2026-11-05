@@ -7,7 +7,7 @@ This repository is a plugin marketplace with more than one plugin.
 
 | Plugin | Purpose |
 | --- | --- |
-| [`ragnarok`](plugins/ragnarok) | Set up ragnarok on a computer, adapt it to your vaults, and make Claude search the vaults with ragnarok first. |
+| [`ragnarok`](plugins/ragnarok) | Run the ragnarok MCP server from PyPI, set it up, adapt it to your vaults, and make Claude search the vaults with ragnarok first. |
 | [`ragnarok-kb-mods`](plugins/ragnarok-kb-mods) | Optional mods for ragnarok knowledge-base features. |
 
 ## Install

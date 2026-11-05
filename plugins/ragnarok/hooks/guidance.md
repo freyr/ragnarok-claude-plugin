@@ -16,7 +16,7 @@ folder, are archived. A `done` project is current knowledge, not archived. Inclu
 the question is about earlier work.
 
 The tools are deferred. Load them in one call before the first use:
-`ToolSearch` with `select:mcp__ragnarok__search,mcp__ragnarok__find_projects,mcp__ragnarok__list_project,mcp__ragnarok__open_projects,mcp__ragnarok__open_note,mcp__ragnarok__find_by_jira`.
+`ToolSearch` with `select:mcp__plugin_ragnarok_ragnarok__search,mcp__plugin_ragnarok_ragnarok__find_projects,mcp__plugin_ragnarok_ragnarok__list_project,mcp__plugin_ragnarok_ragnarok__open_projects,mcp__plugin_ragnarok_ragnarok__open_note,mcp__plugin_ragnarok_ragnarok__find_by_jira`.
 
 If the tools are absent, fall back to Grep and say so; the `ragnarok-setup` skill sets ragnarok up.
 Results can be unrelated: read the text before you rely on it, and cite note paths. Private notes are
