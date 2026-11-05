@@ -13,7 +13,7 @@ frontmatter keys. Find the home folder first:
 H=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/ragnarok-home.sh")
 ```
 
-Start each shell call with `cd "$H"`, then run every command as `uvx ragnarok ...`. The paths
+Start each shell call with `cd "$H"`, then run every command as `uvx ragnarok-mcp ...`. The paths
 below (`config.toml`, `data/...`) are relative to `$H` and assume the default `data_dir = "data"`.
 If the script exits 1, the home folder has no `config.toml`: use the `ragnarok-setup` skill first.
 
@@ -34,7 +34,7 @@ If the script exits 1, the home folder has no `config.toml`: use the `ragnarok-s
 ## Step 1: survey each vault
 
 ```bash
-uvx ragnarok survey <vault>          # plain text; --json for one JSON object, --top N for longer lists
+uvx ragnarok-mcp survey <vault>          # plain text; --json for one JSON object, --top N for longer lists
 ```
 
 `<vault>` is a folder name under `root`. It need not be in `vaults` yet. The survey prints folder names,
@@ -71,7 +71,7 @@ allow_private = false
 Private notes stay in the index, but the server never returns them, the export leaves them out, and the
 backfill writes no description for them. Only the person can set `allow_private = true`; never set it.
 Check one or two paths with `ragnarok inspect` (`"sensitivity": "private"`), then run
-`uvx ragnarok index` and check `private_notes` in `ragnarok status`. The MCP server applies the new
+`uvx ragnarok-mcp index` and check `private_notes` in `ragnarok status`. The MCP server applies the new
 patterns at its next call, with no restart. See "How config changes reach the index" in step 3.
 
 ## Step 3: write the path rules and check samples
@@ -104,7 +104,7 @@ Check a sample of 8 to 15 notes from different folders and depths (top of the va
 archive, ignored folders). Paths are relative to `root`, with the vault name first:
 
 ```bash
-uvx ragnarok inspect Clients/Active/Projects/acme-portal/kickoff.md Clients/notes.md
+uvx ragnarok-mcp inspect Clients/Active/Projects/acme-portal/kickoff.md Clients/notes.md
 ```
 
 Each line is JSON with `project`, `area`, `type`, `status`, `sensitivity`, `jira` and `sources` (where
@@ -113,7 +113,7 @@ table. Change the rules and inspect again until the person agrees the values are
 paths from the survey folder names; do not open private notes.
 
 `inspect` reads the files directly, so the rules need no index update while you iterate. Run
-`uvx ragnarok index` once when the person agrees the values are right.
+`uvx ragnarok-mcp index` once when the person agrees the values are right.
 
 ### Add a vault to `vaults`
 
@@ -122,7 +122,7 @@ indexed and searchable at once, and that one tool call embeds the whole vault. S
 
 1. Agree the private patterns of the new vault with the person (step 2) and write them first.
 2. Add the vault to `vaults`.
-3. Run `uvx ragnarok index` at once from the CLI, so that no MCP call has to embed the new vault.
+3. Run `uvx ragnarok-mcp index` at once from the CLI, so that no MCP call has to embed the new vault.
 
 ### How config changes reach the index
 
@@ -132,8 +132,8 @@ The index stores a hash of the rule values (`root`, `vaults`, `skip_dirs`, `priv
 keep their vectors, so this is much faster than a rebuild.
 
 ```bash
-uvx ragnarok index            # after a rule change, the first run reads all notes
-uvx ragnarok status           # notes, private notes, rules_hash, frontmatter coverage for each vault
+uvx ragnarok-mcp index            # after a rule change, the first run reads all notes
+uvx ragnarok-mcp status           # notes, private notes, rules_hash, frontmatter coverage for each vault
 ```
 
 The running MCP server reads `config.toml` again before a call when the file changed. A new rule or
@@ -154,7 +154,7 @@ survey). The vault must be in `vaults`.
 1. Propose:
 
    ```bash
-   uvx ragnarok backfill propose <vault>
+   uvx ragnarok-mcp backfill propose <vault>
    ```
 
    It writes `data/proposals/backfill-<vault>.yaml` and prints the row count, uncertain rows and
@@ -163,7 +163,7 @@ survey). The vault must be in `vaults`.
 2. Export:
 
    ```bash
-   uvx ragnarok backfill export <vault>
+   uvx ragnarok-mcp backfill export <vault>
    ```
 
    It writes `data/proposals/describe-<vault>.json`: `instructions`, `types` and `rows`, each row with
@@ -182,7 +182,7 @@ survey). The vault must be in `vaults`.
 4. Merge:
 
    ```bash
-   uvx ragnarok backfill merge <vault> data/proposals/desc-<vault>-*.json
+   uvx ragnarok-mcp backfill merge <vault> data/proposals/desc-<vault>-*.json
    ```
 
    It prints merged, missing, too long, redacted and unknown counts. Rewrite the too-long and missing
@@ -202,11 +202,11 @@ survey). The vault must be in `vaults`.
 6. Apply:
 
    ```bash
-   uvx ragnarok backfill apply <vault>
+   uvx ragnarok-mcp backfill apply <vault>
    ```
 
    It prints the archive path in `data/backups/`, the notes written and the keys added, and each skipped
-   note. Give the archive path to the person. Then run `uvx ragnarok index` (the changed notes are
+   note. Give the archive path to the person. Then run `uvx ragnarok-mcp index` (the changed notes are
    read again; no rebuild is needed). Repeat for the next vault.
 
 ## Step 5: evaluation set
@@ -250,7 +250,7 @@ eval_exclude = ["Work/Meta/search-eval"]
 Run it and record the output for the person (results are also written to `data/eval/results/`):
 
 ```bash
-uvx ragnarok eval mechanical
+uvx ragnarok-mcp eval mechanical
 ```
 
 It compares grep, keyword, dense and hybrid search. Hybrid should be at least as good as grep. If a

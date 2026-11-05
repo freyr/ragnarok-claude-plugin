@@ -17,8 +17,8 @@ Then ask Claude to set up ragnarok. The `ragnarok-setup` skill does the rest.
 
 | Part | What it does |
 | --- | --- |
-| MCP server `ragnarok` | `uvx ragnarok serve` from [PyPI](https://pypi.org/p/ragnarok). The tools are `mcp__plugin_ragnarok_ragnarok__*`. |
-| Skill `ragnarok-setup` | Runs `uvx ragnarok init` (Ollama service, embedding model, index) and `ragnarok doctor`, fixes what fails, and moves an older checkout setup to the plugin. |
+| MCP server `ragnarok` | `uvx ragnarok-mcp serve` from [PyPI](https://pypi.org/p/ragnarok-mcp). The tools are `mcp__plugin_ragnarok_ragnarok__*`. |
+| Skill `ragnarok-setup` | Runs `uvx ragnarok-mcp init` (Ollama service, embedding model, index) and `ragnarok doctor`, fixes what fails, and moves an older checkout setup to the plugin. |
 | Skill `ragnarok-adapt` | Adapts ragnarok to your vaults: survey, private folders, path rules, optional frontmatter backfill, an evaluation set. |
 | SessionStart hook | Adds the "ragnarok first" search guidance to each session, so Claude uses the ragnarok tools before Grep. |
 | `scripts/ragnarok-home.sh` | Prints the home folder of the server: `$RAGNAROK_HOME`, else `~/.ragnarok`. |
@@ -37,5 +37,5 @@ macOS with Homebrew, `brew install ollama uv`, and Claude Code.
 
 If your `~/.claude/CLAUDE.md` already holds a "ragnarok first" block, remove it. The hook gives the same
 guidance, and two copies that differ confuse Claude. If `ragnarok init` registered the server at the user
-scope before, remove that registration (`claude mcp remove --scope user ragnarok`, or `uvx ragnarok init`
+scope before, remove that registration (`claude mcp remove --scope user ragnarok`, or `uvx ragnarok-mcp init`
 asks to remove it), so that only the plugin server runs.

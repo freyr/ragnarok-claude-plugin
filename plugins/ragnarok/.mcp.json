@@ -2,7 +2,7 @@
   "mcpServers": {
     "ragnarok": {
       "command": "uvx",
-      "args": ["ragnarok", "serve"],
+      "args": ["ragnarok-mcp", "serve"],
       "env": {
         "RAGNAROK_HOME": "${RAGNAROK_HOME:-}"
       }
