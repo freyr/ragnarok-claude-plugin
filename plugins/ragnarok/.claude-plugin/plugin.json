@@ -1,6 +1,6 @@
 {
   "name": "ragnarok",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Set up ragnarok on a computer, adapt it to your vaults, and make Claude search the vaults with ragnarok first.",
   "author": {
     "name": "freyr"
