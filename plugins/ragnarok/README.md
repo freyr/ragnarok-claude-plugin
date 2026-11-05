@@ -4,7 +4,7 @@ Sets up the [ragnarok](https://github.com/freyr/ragnarok) vault search system on
 
 ## Install
 
-```
+```text
 /plugin install ragnarok --marketplace freyr/ragnarok-claude-plugin
 ```
 

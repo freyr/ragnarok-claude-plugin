@@ -1,0 +1,111 @@
+name: Release
+
+# On each push to main, run CI. Then, if a commit since the last release holds [major], [minor]
+# or [patch], bump the version of the marketplace and every plugin, update CHANGELOG.md, commit,
+# tag and publish a GitHub release. A push with no marker makes no release.
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          # The job pushes the release commit and the tag with the workflow token.
+          persist-credentials: true # zizmor: ignore[artipacked]
+
+      - name: Compute the next version from the commit markers
+        id: bump
+        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # 1.75.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: "true"
+          DEFAULT_BUMP: none
+          WITH_V: "true"
+          RELEASE_BRANCHES: main
+          BRANCH_HISTORY: compare
+          # The action matches these as shell patterns, so the brackets are escaped.
+          MAJOR_STRING_TOKEN: '\[major\]'
+          MINOR_STRING_TOKEN: '\[minor\]'
+          PATCH_STRING_TOKEN: '\[patch\]'
+          NONE_STRING_TOKEN: '\[none\]'
+
+      - name: Decide
+        id: decide
+        env:
+          PART: ${{ steps.bump.outputs.part }}
+          OLD_TAG: ${{ steps.bump.outputs.old_tag }}
+          NEW_TAG: ${{ steps.bump.outputs.new_tag }}
+        run: |
+          if [ "$PART" = "none" ] || [ -z "$NEW_TAG" ] || [ "$NEW_TAG" = "$OLD_TAG" ]; then
+            echo "No [major], [minor] or [patch] marker since $OLD_TAG. No release." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "release=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "Release $NEW_TAG ($PART bump from $OLD_TAG)." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "release=true" >>"$GITHUB_OUTPUT"
+            echo "tag=$NEW_TAG" >>"$GITHUB_OUTPUT"
+            echo "version=${NEW_TAG#v}" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump the plugin versions
+        if: steps.decide.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: scripts/bump-version.sh "$VERSION"
+
+      - name: Update CHANGELOG.md
+        if: steps.decide.outputs.release == 'true'
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          config: cliff.toml
+          args: --tag ${{ steps.decide.outputs.tag }}
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Write the release notes
+        if: steps.decide.outputs.release == 'true'
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          config: cliff.toml
+          args: --unreleased --strip header --tag ${{ steps.decide.outputs.tag }}
+        env:
+          OUTPUT: ${{ runner.temp }}/RELEASE_NOTES.md
+
+      - name: Commit, tag and push
+        if: steps.decide.outputs.release == 'true'
+        env:
+          TAG: ${{ steps.decide.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json
+          git commit -m "chore(release): $TAG [skip ci]"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin HEAD:main
+          git push origin "$TAG"
+
+      - name: Publish the GitHub release
+        if: steps.decide.outputs.release == 'true'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ steps.decide.outputs.tag }}
+          name: ${{ steps.decide.outputs.tag }}
+          body_path: ${{ runner.temp }}/RELEASE_NOTES.md

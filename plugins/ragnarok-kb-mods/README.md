@@ -6,7 +6,7 @@ working ragnarok setup.
 
 ## Install
 
-```
+```text
 /plugin install ragnarok-kb-mods --marketplace freyr/ragnarok-claude-plugin
 ```
 
@@ -14,12 +14,12 @@ working ragnarok setup.
 
 The hooks module is `hooks/register.ts`. Add hooks with `on(event, matcher?, hook)`. Validate the plugin:
 
-```
+```text
 claude plugin validate plugins/ragnarok-kb-mods
 ```
 
 Load it from disk for one session:
 
-```
+```text
 claude --plugin-dir plugins/ragnarok-kb-mods
 ```
