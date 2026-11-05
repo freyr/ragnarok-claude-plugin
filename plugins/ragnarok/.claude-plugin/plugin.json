@@ -1,6 +1,6 @@
 {
   "name": "ragnarok",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Run the ragnarok MCP server from PyPI, set it up, adapt it to your vaults, and make Claude search the vaults with ragnarok first.",
   "author": {
     "name": "freyr"

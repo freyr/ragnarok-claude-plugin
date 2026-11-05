@@ -4,6 +4,12 @@ All notable changes to this project are listed here. Versions follow
 [Semantic Versioning](https://semver.org). A release is made when a commit on `main`
 holds `[major]`, `[minor]` or `[patch]`.
 
+## [0.3.0](https://github.com/freyr/ragnarok-claude-plugin/releases/tag/v0.3.0) - 2026-11-05
+
+### Features
+
+- Feat(ragnarok): run the MCP server from PyPI with uvx  (#3) ([bea02d7](https://github.com/freyr/ragnarok-claude-plugin/commit/bea02d7446af7a39b3538a87431521654a0dfad4))
+
 ## [0.2.0](https://github.com/freyr/ragnarok-claude-plugin/releases/tag/v0.2.0) - 2026-11-05
 
 ### Features
