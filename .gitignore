@@ -2,3 +2,5 @@
 node_modules/
 # Types that Claude Code generates when it loads a mod from disk
 **/.claude-plugin/types/
+# Worktrees that Claude Code creates in this checkout
+.claude/worktrees/

@@ -4,7 +4,8 @@
     "name": "freyr"
   },
   "metadata": {
-    "description": "Claude Code plugins for ragnarok, the local RAG search over Obsidian vaults: setup and knowledge-base mods."
+    "description": "Claude Code plugins for ragnarok, the local RAG search over Obsidian vaults: setup and knowledge-base mods.",
+    "version": "0.1.0"
   },
   "plugins": [
     {
