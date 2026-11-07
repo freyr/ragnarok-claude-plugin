@@ -95,7 +95,7 @@ link_count() {
 
 cmd_save() {
   [ $# -ge 2 ] || die "usage: kb-write.sh save <backup-dir> <file>..."
-  local backup=$1 within file path paths=()
+  local backup=$1 within file path links paths=()
   shift
   within=$(within_dir)
   # check every path before the first copy, so that a refusal leaves no partial backup
@@ -110,8 +110,15 @@ cmd_save() {
     fi
     if [ -e "$path" ]; then
       [ -f "$path" ] || die "not a regular file: $path"
-      if [ -n "$within" ] && [ "$(link_count "$path")" -gt 1 ]; then
-        die "a file with more than one hard link: $path (the mirror must be a real copy)"
+      if [ -n "$within" ]; then
+        # fail closed: a link count that cannot be read refuses the file
+        links=$(link_count "$path") || die "cannot read the link count: $path"
+        case $links in
+          '' | *[!0-9]*) die "cannot read the link count: $path" ;;
+        esac
+        if [ "$links" -gt 1 ]; then
+          die "a file with more than one hard link: $path (the mirror must be a real copy)"
+        fi
       fi
     fi
     paths+=("$path")

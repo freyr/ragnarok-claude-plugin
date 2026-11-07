@@ -97,12 +97,18 @@ it. `path` (optional): the intended note key. Before step 1:
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/kb-write.sh" bench "<mirror>"`. Exit 1 means no ancestor folder of
    the mirror holds `.ragnarok-bench`: refuse fixture mode, write nothing, and give the final record with
    `"outcome": "refused"`.
-2. Prove that the server indexes the mirror. Call `vault_rules`. For each vault, find one existing note file
-   under `<mirror>/<folder>` that matches no `private_patterns` entry (for example with
-   `find "<mirror>/<folder>" -name '*.md' -not -path '*/.*'`), and call `validate(paths=["<absolute path of that
-   file>"])`. The server maps an absolute path to a note key only when the path is under one of its own vault
-   folders, and it gives an error for a path that is not in its index. Any tool error (not the issues of that
-   note) means that the server does not index the mirror: refuse the same way.
+2. Prove that the server indexes the mirror. Call `vault_rules`. For each vault:
+   - Take one note key of that vault from the server: the `path` of the first result of
+     `search(query="<vault name>", vault="<vault name>", limit=1)`, or of a `find_entities` result in that vault.
+     The server gives only indexed notes that are not private.
+   - Map it to the file `<mirror>/<folder>/<path in the vault>` and check that the file exists.
+   - Call `validate(paths=["<absolute path of that file>"])`. The server maps an absolute path to a note key only
+     when the path is under one of its own vault folders, and it gives an error for a path that is not in its
+     index.
+
+   Refuse the same way when a mapped file does not exist, or on any tool error (not the issues of that note):
+   the server does not index the mirror. Skip a vault for which the server gives no note. Refuse when no vault
+   is proven.
 3. The fixture server must be the only ragnarok MCP server in the session; the runner provides it. Its tools can
    have another prefix than `mcp__plugin_ragnarok_ragnarok__`: use the tools of that one server.
 4. The mirror must be a real copy: no symbolic links and no hard links to files outside it. The helper script
@@ -159,14 +165,14 @@ report and the final record come from it.
   | Target note key | From the area and project rules and the archive folder of `vault_rules`, next to similar notes. In fixture mode a given `path` is the target. |
 
 - **Output.** A draft: frontmatter and body.
-- **Gate.** Check the target key of each new note of the change set:
+- **Gate.** Check the target key of the draft (and of each extra draft, such as a new entity note):
   - It must not match a `private_patterns` entry. Match like Python `fnmatchcase` on the note key; `*` also
     matches `/`.
   - It must not be under the archive folder.
-  - Its note file must not exist. Check the file (`test -e "<note file>"`), not only the index.
 
   On a failed check: real mode, choose another folder or name and ask the person; fixture mode, refuse (write
-  nothing, `outcome: refused`). Then go to step 3.
+  nothing, `outcome: refused`). Then go to step 3. Whether the target file exists is checked at the end of step 5,
+  when the change set is known.
 
 ### Step 3: collision candidates
 
@@ -222,6 +228,7 @@ report and the final record come from it.
   | `same` | Stop. Show the existing note. Nothing is written. |
   | `extends`, the candidate is a state or a proposal | Merge: rewrite the existing note in place with the new content. Its path and links stay. |
   | `extends`, the candidate is a record | Link: write the draft as a new note with a link to the record. A record is not rewritten with new facts. |
+  | `extends`, the candidate has no class | Find its class first (the class table, else its content), then use the two rows above. |
   | `supersedes`, same identity key, the candidate is a state | Merge: rewrite the existing state note in place, with a new `as_of`. |
   | `supersedes`, other identity key, or the candidate is not a state | Supersede: write the new note with `supersedes`. The old note gets `validity: superseded` and `superseded_by`. |
   | `contradicts` | Resolve by the rules R1 to R4 below, in order. When one rule decides, supersede or merge. When no rule decides, stop and ask the person; nothing is written until the person decides. |
@@ -253,8 +260,9 @@ report and the final record come from it.
 
   Details of the actions:
   - **Merge** has one target. With more than one candidate for a merge, take the one with the same identity key,
-    else ask the person (fixture mode: the first in the `find_collisions` order). Judge the other merge candidates
-    again as `supersedes` or `overlaps`. Keep the target's path, existing keys and links. Rewrite its body so
+    else ask the person (fixture mode: the first in the `find_collisions` order). Each other merge candidate gets
+    the Supersede action (it gets `superseded_by` the merge target), whatever its identity key; do not judge it
+    again. Keep the target's path, existing keys and links. Rewrite its body so
     that it holds the old and the new facts, current truth only. For a state, set `as_of` to the new date.
   - **Supersede**: the replacing note lists each old note in `supersedes`, for example
     `supersedes: ["[[Notes/old]]"]`. The old note gets `superseded_by: "[[Notes/new]]"`, and, for a state or a
@@ -262,7 +270,9 @@ report and the final record come from it.
     change.
   - **Link** (the overlaps action, and `extends` into a record). Keep the shared part in the note whose identity
     key owns it (usually the state note about that subject). In the other note, replace the copied part with one
-    sentence and a wiki-link to the owner. The two notes are a pair; the existing one is the target.
+    sentence and a wiki-link to the owner. For `extends` into a record, the new note gets one sentence and a
+    wiki-link to the record, and the record does not change. The two notes are a pair; the existing one is the
+    target.
   - **Accept** sets `validity: accepted` on the proposal and adds a wiki-link to the state note in its body.
     **Abandon** sets `validity: rejected` and adds the reason in one sentence.
   - **Labels of a changed note.** Each existing note that the run changes must pass checks 1 and 2 of `validate`
@@ -273,8 +283,12 @@ report and the final record come from it.
 
 - **Output.** The change set: the full new text of each changed or new note, with the action and the reason for
   each.
-- **Gate.** A `same` action, or a `contradicts` that no rule decides: stop and report (fixture mode: the final
-  record). Else go to step 6.
+- **Gate.**
+  - A `same` action, or a `contradicts` that no rule decides: stop and report (fixture mode: the final record).
+  - Each note that the change set creates (the draft in branch 4, a new entity note) must have a note file that
+    does not exist. Check the file (`test -e "<note file>"`), not only the index. If it exists: real mode, choose
+    another name and ask the person; fixture mode, refuse (write nothing, `outcome: refused`).
+  - Else go to step 6.
 
 ### Step 6: validation
 
@@ -292,7 +306,10 @@ report and the final record come from it.
     `message`), and it is in a part that the run does not change (for example a broken link in a body that the
     run does not rewrite);
   - a pending target: a `missing-target` or `broken-link` error whose target is a new note of the same change set
-    (for example `superseded_by` on the old note before the new note exists).
+    (for example `superseded_by` on the old note before the new note exists);
+  - a pending pair: a `no-matching-supersedes` error on an old note whose `superseded_by` target is the merge
+    target of the same change set, when the merge-target draft lists this old note in `supersedes` (branch 3:
+    the index still holds the unchanged merge target).
 
   Any other error is a fail: go back to step 2 or 5, correct the draft, and validate again. After three failed
   rounds, stop and report the errors; nothing is written. For an `unknown-key` warning, remove the key unless the
@@ -309,7 +326,7 @@ report and the final record come from it.
   4. one unified diff of all files of the change set. Write each draft to a new staging folder
      (`mktemp -d "${TMPDIR:-/tmp}/kb-write-drafts.XXXXXX"`) and run `diff -u <note file> <draft file>`. Use
      `diff -u /dev/null <draft file>` only for a new note whose note file does not exist (check it again now);
-  5. the `validate` result, with the warnings and the accepted baseline and pending errors.
+  5. the `validate` result, with the warnings and the accepted baseline, pending-target and pending-pair errors.
 
   Then ask: write all of it, change something, or stop.
 - **Output.** The answer of the person.
@@ -359,7 +376,7 @@ report and the final record come from it.
      If it still fails after the retries, the check fails. Real mode: after the restore, tell the person to run
      `ragnarok index` with the same install and the same `RAGNAROK_HOME` as the server, and then to run the skill
      again. Do not run another `ragnarok-mcp` version for this.
-  2. Compare with the baseline errors of step 6. Pending-target errors must be gone now.
+  2. Compare with the baseline errors of step 6. The pending-target and pending-pair errors must be gone now.
 - **Output.** The `validate` result of the changed notes.
 - **Gate (hard).** Pass: no error of check 1 or check 2, and no other error except a baseline error that step 6
   accepted. Fail: restore all files:
