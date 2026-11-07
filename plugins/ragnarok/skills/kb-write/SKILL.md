@@ -331,7 +331,8 @@ report and the final record come from it.
   Then ask: write all of it, change something, or stop.
 - **Output.** The answer of the person.
 - **Gate.** Only an explicit yes goes to step 8. A change goes back to the step that it affects (an action:
-  step 5; a label, or the folder or name of a new note: step 2), then step 6 and step 7 again. Only the path of a
+  step 5; a label, or the folder or name of a new note: step 2, then the file check of the step 5 gate for the new
+  path), then step 6 and step 7 again. Only the path of a
   new note can change; an existing note keeps its path. The rewrite of inbound links after a path change is out of
   scope. No, or no answer: stop; nothing is written.
 
