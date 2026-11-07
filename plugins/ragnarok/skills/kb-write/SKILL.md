@@ -26,12 +26,14 @@ Below, `vault_rules` means `mcp__plugin_ragnarok_ragnarok__vault_rules`, and so 
 
 - Write only on an explicit request of the person, or in fixture mode. Never start this skill on your own.
 - Write nothing before step 7 has an explicit "yes" from the person (fixture mode: before step 6 passes).
-- A private note is never read, quoted or changed. A `PrivateNotAllowed` error of any tool, or a target path
-  that matches a `private_patterns` entry of `vault_rules`, stops the run. Never set `allow_private` and never
-  pass `allow_private=true`. Do not get around a refusal with Read, Grep or a shell command.
+- A private note is never read, quoted or changed. A `PrivateNotAllowed` error of any tool stops the run. A
+  target path that matches a `private_patterns` entry of `vault_rules` is never written (the step 2 gate). Never
+  set `allow_private` and never pass `allow_private=true`. Do not get around a refusal with Read, Grep or a shell
+  command.
 - Never invent an entity. A `subject` or an `owner` is an entity note that `find_entities` lists. A new entity
   needs its own note, which the person approves as part of the same diff.
-- Never move, rename or delete an existing note. The resolution actions keep each path.
+- Never move, rename, delete or overwrite an existing note. The resolution actions keep each path, and a new
+  note never takes the path of an existing file.
 - Back up each file before you change it (step 8). On a failed post-write check, restore all backups (step 9).
 - Keep the person's data out of this plugin: no note text, path or name goes into a tracked file of a repo.
 
@@ -40,7 +42,7 @@ Below, `vault_rules` means `mcp__plugin_ragnarok_ragnarok__vault_rules`, and so 
 | Term | Meaning |
 | --- | --- |
 | Note key | `<vault>/<path in the vault>`, as in `search` results, for example `Work/Clients/acme.md`. Tools take and return note keys. |
-| Note file | The file of a note key: `<vault folder>/<path in the vault>`. The vault folder is `vault_paths.<vault>` of the `config.toml` of the ragnarok home, else `<root>/<vault>`. In fixture mode it is `<mirror>/<vault folder>`. |
+| Note file | The file of a note key. Real mode: `<vault folder>/<path in the vault>`, where the vault folder is `vault_paths.<vault>` of the `config.toml` of the ragnarok home, else `<root>/<vault>`. Fixture mode: `<mirror>/<folder>/<path in the vault>`, where `folder` is the `folder` of that vault in `vault_rules`. |
 | Draft | The full Markdown text of a note that you intend to write (frontmatter and body), with its intended note key. |
 | Change set | All drafts of one run: the new notes and the changed existing notes. |
 | Identity key | `type`, the primary subject (the first `subject` item, resolved to its entity note) and `task` when the note has one. A note with no primary subject has no identity key. |
@@ -63,7 +65,10 @@ entity note, `kind`, `aliases` and `facts` are allowed too.
 | `superseded_by` | wiki-link | On the old note. A state or proposal also gets `validity: superseded`. |
 | `owner` | wiki-link to an entity of kind person or team | Optional. |
 
-Write a wiki-link value as a quoted string, for example `subject: ["[[acme]]"]`.
+Write a wiki-link value as a quoted string, for example `subject: ["[[Clients/acme]]"]`. A wiki-link names the
+path in the vault without `.md` (the note key without the vault name and without `.md`): the note key
+`Work/Clients/acme.md` is the link `[[Clients/acme]]`. Obsidian reads a link relative to the vault root, so a
+link with the vault name does not resolve there.
 
 The class of a type, when the person or the vault gives no other class:
 
@@ -92,10 +97,18 @@ it. `path` (optional): the intended note key. Before step 1:
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/kb-write.sh" bench "<mirror>"`. Exit 1 means no ancestor folder of
    the mirror holds `.ragnarok-bench`: refuse fixture mode, write nothing, and give the final record with
    `"outcome": "refused"`.
-2. Call `vault_rules`. Each vault `folder` must be a folder directly under the mirror. Else the server indexes
-   another root: refuse the same way.
-3. Never ask a question. Where real mode asks the person, fixture mode uses the default that each step names.
-4. Use the Write and Edit tools only on paths under the mirror. The draft file is input; never change it.
+2. Prove that the server indexes the mirror. Call `vault_rules`. For each vault, find one existing note file
+   under `<mirror>/<folder>` that matches no `private_patterns` entry (for example with
+   `find "<mirror>/<folder>" -name '*.md' -not -path '*/.*'`), and call `validate(paths=["<absolute path of that
+   file>"])`. The server maps an absolute path to a note key only when the path is under one of its own vault
+   folders, and it gives an error for a path that is not in its index. Any tool error (not the issues of that
+   note) means that the server does not index the mirror: refuse the same way.
+3. The fixture server must be the only ragnarok MCP server in the session; the runner provides it. Its tools can
+   have another prefix than `mcp__plugin_ragnarok_ragnarok__`: use the tools of that one server.
+4. The mirror must be a real copy: no symbolic links and no hard links to files outside it. The helper script
+   refuses such a file in step 8.
+5. Never ask a question. Where real mode asks the person, fixture mode uses the default that each step names.
+6. Use the Write and Edit tools only on paths under the mirror. The draft file is input; never change it.
 
 ## The steps
 
@@ -143,11 +156,17 @@ report and the final record come from it.
   | `task` | Only for a how-to or a procedure: the task in a few words. |
   | `owner` | Only when the text or the person names a person or team that has an entity note. |
   | `project`, `area`, `status`, `description` | As the vault uses them; `description` is one sentence that stands alone. |
-  | Target note key | From the area and project rules and the archive folder of `vault_rules`, next to similar notes. In fixture mode a given `path` wins. |
+  | Target note key | From the area and project rules and the archive folder of `vault_rules`, next to similar notes. In fixture mode a given `path` is the target. |
 
 - **Output.** A draft: frontmatter and body.
-- **Gate.** The target key must not match a `private_patterns` entry and must not be under the archive folder.
-  Else choose another folder (real mode: ask the person). Then go to step 3.
+- **Gate.** Check the target key of each new note of the change set:
+  - It must not match a `private_patterns` entry. Match like Python `fnmatchcase` on the note key; `*` also
+    matches `/`.
+  - It must not be under the archive folder.
+  - Its note file must not exist. Check the file (`test -e "<note file>"`), not only the index.
+
+  On a failed check: real mode, choose another folder or name and ask the person; fixture mode, refuse (write
+  nothing, `outcome: refused`). Then go to step 3.
 
 ### Step 3: collision candidates
 
@@ -201,9 +220,10 @@ report and the final record come from it.
   | Verdict | Action |
   | --- | --- |
   | `same` | Stop. Show the existing note. Nothing is written. |
-  | `extends` | Merge: rewrite the existing note in place with the new content. Its path and links stay. |
-  | `supersedes`, same identity key | Merge: rewrite the existing state note in place, with a new `as_of`. |
-  | `supersedes`, other identity key | Supersede: write the new note with `supersedes`. The old note gets `validity: superseded` and `superseded_by`. |
+  | `extends`, the candidate is a state or a proposal | Merge: rewrite the existing note in place with the new content. Its path and links stay. |
+  | `extends`, the candidate is a record | Link: write the draft as a new note with a link to the record. A record is not rewritten with new facts. |
+  | `supersedes`, same identity key, the candidate is a state | Merge: rewrite the existing state note in place, with a new `as_of`. |
+  | `supersedes`, other identity key, or the candidate is not a state | Supersede: write the new note with `supersedes`. The old note gets `validity: superseded` and `superseded_by`. |
   | `contradicts` | Resolve by the rules R1 to R4 below, in order. When one rule decides, supersede or merge. When no rule decides, stop and ask the person; nothing is written until the person decides. |
   | `overlaps` | Keep both. Replace the copied part of one note with a link to the other. |
   | a proposal that a state now realizes | Accept: the proposal gets `validity: accepted`, and a link to the state note. |
@@ -214,24 +234,40 @@ report and the final record come from it.
 
   | # | Rule | Result |
   | --- | --- | --- |
-  | R1 | One value comes from a system of record (`write.systems_of_record`, or a CRM, HR system, Git, cost data). | The system of record wins. The note does not copy the value; it names or links the source. If the listed skill can read the value, use it to check which claim is true. Then merge or supersede. |
+  | R1 | One value comes from a system of record (`write.systems_of_record`, or a CRM, HR system, Git, cost data). | The system of record wins. The note does not copy the value; it names or links the source. If the listed skill can read the value, use it to check which claim is true (fixture mode: do not call a system-of-record skill; R1 decides only from the notes). Then merge or supersede. |
   | R2 | Scope or time explains the difference. | Add the scope or the period to the claims. No conflict remains: judge the pair again (usually `extends`, `overlaps` or `unrelated`). |
-  | R3 | The new claim has newer evidence of equal or higher authority. | The new claim wins: merge on the same identity key, else supersede. |
+  | R3 | The new claim has newer evidence of equal or higher authority. | The new claim wins: merge into a state with the same identity key, else supersede. |
   | R4 | The owner of the subject decides. | Real mode: ask the person whether they own the subject and which claim is true, then merge or supersede. Fixture mode: R4 does not apply. |
   | — | No rule decides | Stop and ask the person. Nothing is written until the person decides. Fixture mode: stop with action `ask`. |
 
+  **Combine the actions of all candidates** in this order:
+  1. Any `same`: stop. Nothing is written.
+  2. Any `contradicts` that no rule decides: stop with action `ask`. Nothing is written.
+  3. With a merge target: the merge target absorbs the draft, and the draft is not written as a new note. Each
+     candidate with a supersede action gets `superseded_by` the merge target, and the merge target lists each of
+     them in its `supersedes`.
+  4. Without a merge target: the draft is written as a new note. Its `supersedes` lists every candidate with a
+     supersede action, and each of them gets `superseded_by` the new note.
+  5. Accept, abandon and link actions are added to either branch. In branch 3, "the new note" of these actions is
+     the merge target.
+
   Details of the actions:
   - **Merge** has one target. With more than one candidate for a merge, take the one with the same identity key,
-    else ask the person (fixture mode: the first in the `find_collisions` order). Keep the target's path,
-    existing keys and links. Rewrite its body so that it holds the old and the new facts, current truth only.
-    For a state, set `as_of` to the new date. The draft itself is not written as a new note.
-  - **Supersede** writes the draft at its target key with `supersedes: ["[[<old note>]]"]`. The old note gets
-    `superseded_by: "[[<new note>]]"`, and, for a state or a proposal, `validity: superseded`. A record gets
-    only `superseded_by`. The body of the old note does not change.
-  - **Overlaps.** Keep the shared part in the note whose identity key owns it (usually the state note about that
-    subject). In the other note, replace the copied part with one sentence and a wiki-link to the owner.
+    else ask the person (fixture mode: the first in the `find_collisions` order). Judge the other merge candidates
+    again as `supersedes` or `overlaps`. Keep the target's path, existing keys and links. Rewrite its body so
+    that it holds the old and the new facts, current truth only. For a state, set `as_of` to the new date.
+  - **Supersede**: the replacing note lists each old note in `supersedes`, for example
+    `supersedes: ["[[Notes/old]]"]`. The old note gets `superseded_by: "[[Notes/new]]"`, and, for a state or a
+    proposal, `validity: superseded`. A record gets only `superseded_by`. The body of the old note does not
+    change.
+  - **Link** (the overlaps action, and `extends` into a record). Keep the shared part in the note whose identity
+    key owns it (usually the state note about that subject). In the other note, replace the copied part with one
+    sentence and a wiki-link to the owner. The two notes are a pair; the existing one is the target.
   - **Accept** sets `validity: accepted` on the proposal and adds a wiki-link to the state note in its body.
     **Abandon** sets `validity: rejected` and adds the reason in one sentence.
+  - **Labels of a changed note.** Each existing note that the run changes must pass checks 1 and 2 of `validate`
+    after the change. If it has no `class`, add it (from the class table, else from the content); if it is a
+    state or a proposal with no `validity`, add it.
   - With no candidate, or only `unrelated` candidates, write the draft as a new note (action `new`).
   - Real mode: the person can always change an action in step 7.
 
@@ -250,8 +286,11 @@ report and the final record come from it.
      takes the place of that note in the check.
 - **Output.** For each draft: `error_count`, `warning_count` and `issues` (each with `path`, `check`,
   `severity`, `kind`, `message`).
-- **Gate (hard).** Pass when each error of each draft is one of these:
-  - a baseline error that the same note already had (same `kind` and `message`);
+- **Gate (hard).** Each draft must have no error of check 1 or check 2 (the keys and values of the model, the
+  required `class` and `validity`). Pass when each other error of each draft is one of these:
+  - a baseline error that the run cannot fix in that note: the same note already had it (same `kind` and
+    `message`), and it is in a part that the run does not change (for example a broken link in a body that the
+    run does not rewrite);
   - a pending target: a `missing-target` or `broken-link` error whose target is a new note of the same change set
     (for example `superseded_by` on the old note before the new note exists).
 
@@ -267,63 +306,71 @@ report and the final record come from it.
   1. the admission result and the reason;
   2. the candidate table of step 4 (path, reasons, distance, verdict, quote);
   3. each action with its reason;
-  4. one unified diff of all files of the change set. Write each draft to a staging folder (for example
-     `$TMPDIR/kb-write/<run id>/drafts/`) and run `diff -u <note file> <draft file>`; for a new note,
-     `diff -u /dev/null <draft file>`;
+  4. one unified diff of all files of the change set. Write each draft to a new staging folder
+     (`mktemp -d "${TMPDIR:-/tmp}/kb-write-drafts.XXXXXX"`) and run `diff -u <note file> <draft file>`. Use
+     `diff -u /dev/null <draft file>` only for a new note whose note file does not exist (check it again now);
   5. the `validate` result, with the warnings and the accepted baseline and pending errors.
 
   Then ask: write all of it, change something, or stop.
 - **Output.** The answer of the person.
 - **Gate.** Only an explicit yes goes to step 8. A change goes back to the step that it affects (an action:
-  step 5; a label or a folder: step 2), then step 6 and step 7 again. No, or no answer: stop; nothing is written.
+  step 5; a label, or the folder or name of a new note: step 2), then step 6 and step 7 again. Only the path of a
+  new note can change; an existing note keeps its path. The rewrite of inbound links after a path change is out of
+  scope. No, or no answer: stop; nothing is written.
 
 ### Step 8: backup and write
 
 - **Input.** The approved change set (fixture mode: the change set that passed step 6).
 - **Do.**
   1. Make a run id: `date -u +%Y%m%dT%H%M%SZ`.
-  2. Choose the backup folder, outside every vault and outside the mirror:
-     - real mode: `<ragnarok home>/data/kb-write-backups/<run id>/`, where the home is the output of
+  2. Make a new backup folder for this run, outside every vault and outside the mirror. `mktemp -d` makes it
+     unique, so that a restore never touches the files of another run:
+     - real mode: `mkdir -p "<home>/data/kb-write-backups"`, then
+       `mktemp -d "<home>/data/kb-write-backups/<run id>.XXXXXX"`, where the home is the output of
        `bash "${CLAUDE_PLUGIN_ROOT}/scripts/ragnarok-home.sh"`;
-     - fixture mode: `${TMPDIR:-/tmp}/kb-write/<run id>/backup/` (nothing is written in the bench home outside
-       the mirror).
-  3. Collect the files to change: each note file of the change set, and, for a path change, each note that
-     links to it (below). Back them all up in one call before the first write:
+     - fixture mode: `mktemp -d "${TMPDIR:-/tmp}/kb-write.XXXXXX"`. No backup or staging file is written in the
+       bench home.
+  3. Collect the note files of the change set. Back them all up in one call before the first write:
 
      ```bash
      bash "${CLAUDE_PLUGIN_ROOT}/scripts/kb-write.sh" save "<backup folder>" "<note file>" ...
      ```
 
      In fixture mode, set `KB_WRITE_WITHIN="<mirror>"` for that call: the script refuses a file outside the
-     mirror. A non-zero exit stops the run before any write. A missing file (a new note) is recorded as created.
+     mirror and a file with more than one hard link. The script always refuses a symbolic link and a path with a
+     newline or a tab. A non-zero exit stops the run before any write. The script prints `saved<TAB><path>` for
+     an existing file and `created<TAB><path>` for a missing file. If it prints `saved` for a new note, the file
+     exists: stop before any write.
   4. Write each file with the Write or Edit tool: the new notes first, then the changed notes.
-  5. **Links after a path change.** The resolution actions keep each path, so this applies only when the person
-     changed a target path of an existing note in step 7. Before the write, call `open_note(path=<old key>)` and
-     take its `backlinks`. In each note that links to the old path, replace each wiki-link that names it
-     (`[[old]]`, `[[old|text]]`, `[[old#heading]]`, `[[folder/old]]`) with the new target, and keep the alias and
-     heading parts. Back up those notes with the others in item 3. Redirect stubs are out of scope.
 - **Output.** The written files, the backup folder and its `manifest.tsv`.
-- **Gate.** A failed write: restore at once (step 9, restore), then report. Else go to step 9.
+- **Gate.** A failed write: restore at once (the restore command of step 9), then report with
+  `outcome: restored`. Else go to step 9.
 
 ### Step 9: post-write check
 
 - **Input.** The note keys of all files that step 8 wrote or changed.
 - **Do.**
   1. Call `validate(paths=[<each key>])`. Each tool call first scans the vaults and indexes up to 20 changed notes,
-     so this call sees the new files. If its `warnings` say that the index is not current, call `validate` again
-     (each call indexes up to 20 more notes), at most three times. If the warning stays, run
-     `uvx ragnarok-mcp index` with the same `RAGNAROK_HOME` as the server (in fixture mode, the bench home), then
-     call `validate` once more. A `FileNotFoundError` for a written key means that the index does not see the
-     file: that is a fail.
+     newest first, so this call usually sees the new files. Call `validate` again (each call indexes up to 20 more
+     notes), at most three more times, while one of these is true:
+     - its `warnings` say that the index is not current;
+     - it fails with a `FileNotFoundError` for a key that step 8 wrote (the scan deferred that note).
+
+     If it still fails after the retries, the check fails. Real mode: after the restore, tell the person to run
+     `ragnarok index` with the same install and the same `RAGNAROK_HOME` as the server, and then to run the skill
+     again. Do not run another `ragnarok-mcp` version for this.
   2. Compare with the baseline errors of step 6. Pending-target errors must be gone now.
 - **Output.** The `validate` result of the changed notes.
-- **Gate (hard).** Pass: no error other than a baseline error. Fail: restore all files:
+- **Gate (hard).** Pass: no error of check 1 or check 2, and no other error except a baseline error that step 6
+  accepted. Fail: restore all files:
 
   ```bash
   bash "${CLAUDE_PLUGIN_ROOT}/scripts/kb-write.sh" restore "<backup folder>"
   ```
 
-  The script copies each saved file back, deletes each created file and removes each folder that the write made.
+  In fixture mode, set `KB_WRITE_WITHIN="<mirror>"` for the restore too: the script then refuses a manifest with
+  a path outside the mirror before it changes anything. The script copies each saved file back, deletes each
+  created file and removes each folder that the write made.
   Then call `validate(paths=[...])` on the restored existing notes, so that the index scans the restore, and
   report the errors that caused the restore.
 
@@ -336,7 +383,7 @@ Both modes end with the final record: one line that starts with `KB-WRITE-RECORD
 the same line, as the last line of the answer. A replay runner reads the last such line.
 
 ```text
-KB-WRITE-RECORD {"record":"kb-write/1","mode":"fixture","run_id":"20260101T120000Z","mirror":"/abs/mirror","admission":"admit","action":"supersede","targets":["Work/Notes/old.md"],"new_notes":["Work/Notes/new.md"],"changed_files":["Work/Notes/new.md","Work/Notes/old.md"],"collisions":[{"path":"Work/Notes/old.md","verdict":"supersedes","action":"supersede"}],"validate":{"error_count":0,"warning_count":0},"outcome":"written","backup":"/abs/backup"}
+KB-WRITE-RECORD {"record":"kb-write/1","mode":"fixture","run_id":"20260101T120000Z","mirror":"/abs/mirror","admission":"admit","action":"supersede","targets":["Work/Notes/old.md"],"new_notes":["Work/Notes/new.md"],"changed_files":["Work/Notes/new.md","Work/Notes/old.md"],"collisions":[{"path":"Work/Notes/old.md","verdict":"supersedes","action":"supersede"}],"validate":{"error_count":0,"warning_count":0},"written":true,"outcome":"written","backup":"/abs/backup"}
 ```
 
 | Field | Value |
@@ -346,11 +393,12 @@ KB-WRITE-RECORD {"record":"kb-write/1","mode":"fixture","run_id":"20260101T12000
 | `run_id` | The run id of step 8, or `null` when nothing was written. |
 | `mirror` | The mirror path in fixture mode, else `null`. |
 | `admission` | `admit`, `route` or `reject`; `null` when the run was refused before step 1. |
-| `action` | The main action of the run: the first that applies of `refused`, `route`, `reject`, `same`, `ask`, `merge`, `supersede`, `accept`, `abandon`, `link`, `new`. `link` is the overlaps action. `ask` is a contradiction that no rule decides. |
-| `targets` | The note keys of the existing notes that the main action applies to: the note that holds the same content (`same`), the merged note (`merge`), the old notes (`supersede`), the proposals (`accept`, `abandon`), the notes that get a link (`link`). Empty for `new`. |
+| `action` | The decided action of the run, also when nothing was written (check `written` and `outcome`). `refused`, `route` and `reject` apply only when the run stopped before step 5: `route` only for a route to a system of record, a ticket or a skill; a route to a project folder takes its action from step 5. Else the main action of step 5, the first that applies of `same`, `ask`, `merge`, `supersede`, `accept`, `abandon`, `link`, `new`. `link` is the overlaps action (and `extends` into a record). `ask` is a contradiction that no rule decides. |
+| `targets` | The note keys of all existing notes that the main action applies to: the notes that hold the same content (`same`), the merge target and each note that gets `superseded_by` the merge target (`merge`), all old notes (`supersede`), the proposals (`accept`, `abandon`), the other note of each pair (`link`). Empty for `new`. |
 | `new_notes` | The note keys of the notes that the run created. |
 | `changed_files` | The note keys of all files written or created, sorted (the paths of the backup manifest, as note keys). Empty when nothing was written or after a restore. |
 | `collisions` | Each candidate with its `path`, `verdict` and `action` (`merge`, `supersede`, `link`, `accept`, `abandon`, `same`, `ask` or `none`). |
 | `validate` | `error_count` and `warning_count` of step 9, or of the last step 6 round when nothing was written. |
-| `outcome` | `written`, `nothing-written`, `restored` (step 9 failed and the backup was restored), `refused` (fixture mode refused, a private refusal, or a missing tool) or `failed` (an error after which the restore also failed; report it). |
+| `written` | `true` when the run wrote files and kept them (`outcome` is `written`), else `false`. A scorer checks it together with `action` and `targets`. |
+| `outcome` | `written`, `nothing-written`, `restored` (a write in step 8 or the check of step 9 failed, and the backup was restored), `refused` (fixture mode refused, a target that fails the step 2 gate in fixture mode, a private refusal, or a missing tool) or `failed` (an error after which the restore also failed; report it). |
 | `backup` | The backup folder, or `null`. |

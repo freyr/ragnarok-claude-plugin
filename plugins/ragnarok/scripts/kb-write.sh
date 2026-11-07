@@ -3,11 +3,14 @@
 #
 #   kb-write.sh bench <mirror>              print the bench home (the nearest ancestor folder of <mirror> that holds
 #                                           .ragnarok-bench); exit 1 when there is none
-#   kb-write.sh save <backup-dir> <file>... back up each file before the write: an existing file is copied, a missing
-#                                           file is recorded as created; a file already in the backup keeps its first copy
+#   kb-write.sh save <backup-dir> <file>... back up each file before the write: an existing file is copied (prints
+#                                           "saved<TAB>path"), a missing file is recorded ("created<TAB>path"); a file
+#                                           already in the backup keeps its first copy
 #   kb-write.sh restore <backup-dir>        copy each saved file back and delete each created file
 #
-# Files are absolute paths. With KB_WRITE_WITHIN=<dir>, `save` refuses a file outside <dir> (fixture mode: the mirror).
+# Files are absolute paths with no newline or tab. `save` refuses a symbolic link. With KB_WRITE_WITHIN=<dir> (fixture
+# mode: the mirror), `save` and `restore` refuse a path outside <dir>, and `save` refuses a file with more than one
+# hard link. Use a new backup folder for each run (mktemp -d), so that a restore never touches another run.
 # The backup folder holds manifest.tsv (one line per file or folder: saved|created|mkdir, a tab, the path) and
 # files/<path>, the copies of the saved files.
 set -euo pipefail
@@ -68,47 +71,86 @@ cmd_bench() {
   die "$1 is not under a bench home (no .ragnarok-bench in an ancestor folder)"
 }
 
+# The resolved KB_WRITE_WITHIN folder, or nothing when it is not set.
+within_dir() {
+  if [ -n "${KB_WRITE_WITHIN:-}" ]; then
+    (cd "$KB_WRITE_WITHIN" 2>/dev/null && pwd -P) || die "no folder $KB_WRITE_WITHIN"
+  fi
+}
+
+# Exit when the path is not under the folder (no check when the folder is empty).
+check_within() {
+  [ -n "$2" ] || return 0
+  case $1 in
+    *$'\n'* | *$'\t'*) die "a newline or a tab in the path: $1" ;;
+    "$2"/*) ;;
+    *) die "$1 is outside $2" ;;
+  esac
+}
+
+# The number of hard links of a file (GNU stat, else BSD stat).
+link_count() {
+  stat -c %h -- "$1" 2>/dev/null || stat -f %l -- "$1"
+}
+
 cmd_save() {
   [ $# -ge 2 ] || die "usage: kb-write.sh save <backup-dir> <file>..."
-  local backup=$1 within="" file path
+  local backup=$1 within file path paths=()
   shift
-  if [ -n "${KB_WRITE_WITHIN:-}" ]; then
-    within=$(cd "$KB_WRITE_WITHIN" 2>/dev/null && pwd -P) || die "no folder $KB_WRITE_WITHIN"
-  fi
+  within=$(within_dir)
+  # check every path before the first copy, so that a refusal leaves no partial backup
+  for file in "$@"; do
+    case $file in
+      *$'\n'* | *$'\t'*) die "a newline or a tab in the path: $file" ;;
+    esac
+    path=$(absolute "$file")
+    check_within "$path" "$within"
+    if [ -L "$path" ]; then
+      die "a symbolic link: $path (the files must be real files)"
+    fi
+    if [ -e "$path" ]; then
+      [ -f "$path" ] || die "not a regular file: $path"
+      if [ -n "$within" ] && [ "$(link_count "$path")" -gt 1 ]; then
+        die "a file with more than one hard link: $path (the mirror must be a real copy)"
+      fi
+    fi
+    paths+=("$path")
+  done
   mkdir -p "$backup/files"
   touch "$backup/manifest.tsv"
-  for file in "$@"; do
-    path=$(absolute "$file")
-    if [ -n "$within" ]; then
-      case $path in
-        "$within"/*) ;;
-        *) die "$path is outside $within" ;;
-      esac
-    fi
+  for path in "${paths[@]}"; do
     if cut -f2- "$backup/manifest.tsv" | grep -Fxq -- "$path"; then
       continue
     fi
     if [ -e "$path" ]; then
-      [ -f "$path" ] || die "not a regular file: $path"
       mkdir -p "$backup/files$(dirname "$path")"
       cp -p "$path" "$backup/files$path"
       printf 'saved\t%s\n' "$path" >>"$backup/manifest.tsv"
+      printf 'saved\t%s\n' "$path"
     else
       record_folders "$path" "$backup/manifest.tsv"
       printf 'created\t%s\n' "$path" >>"$backup/manifest.tsv"
+      printf 'created\t%s\n' "$path"
     fi
-    printf '%s\n' "$path"
   done
 }
 
 cmd_restore() {
   [ $# -eq 1 ] || die "usage: kb-write.sh restore <backup-dir>"
-  local backup=$1 state path failed=0
+  local backup=$1 within state path failed=0
   [ -f "$backup/manifest.tsv" ] || die "no manifest.tsv in $backup"
+  within=$(within_dir)
+  # check every line before the first change
+  while IFS=$'\t' read -r state path; do
+    case $state in
+      saved | created | mkdir) check_within "$path" "$within" ;;
+      *) die "bad manifest line: $state" ;;
+    esac
+  done <"$backup/manifest.tsv"
   while IFS=$'\t' read -r state path; do
     case $state in
       saved)
-        if cp -p "$backup/files$path" "$path"; then
+        if [ ! -L "$path" ] && cp -p "$backup/files$path" "$path"; then
           printf 'restored\t%s\n' "$path"
         else
           printf 'FAILED\t%s\n' "$path" >&2
@@ -116,11 +158,13 @@ cmd_restore() {
         fi
         ;;
       created)
-        rm -f -- "$path"
-        printf 'deleted\t%s\n' "$path"
+        if rm -f -- "$path"; then
+          printf 'deleted\t%s\n' "$path"
+        else
+          printf 'FAILED\t%s\n' "$path" >&2
+          failed=1
+        fi
         ;;
-      mkdir) ;;
-      *) die "bad manifest line: $state" ;;
     esac
   done <"$backup/manifest.tsv"
   # the folders that save recorded as missing, innermost first; rmdir removes only an empty folder
